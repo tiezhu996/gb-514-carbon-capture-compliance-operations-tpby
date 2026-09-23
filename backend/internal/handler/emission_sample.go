@@ -22,6 +22,7 @@ func (h *EmissionSampleHandler) Register(group *gin.RouterGroup) {
 	resource.GET("/:id", h.get)
 	resource.POST("", middleware.RequireMinimumRole("operator"), h.create)
 	resource.PUT("/:id", middleware.RequireMinimumRole("operator"), h.update)
+	resource.POST("/:id/revisions", middleware.RequireMinimumRole("operator"), h.revise)
 	resource.POST("/:id/transition", middleware.RequireMinimumRole("operator"), h.transition)
 	resource.DELETE("/:id", middleware.RequireRoles("admin"), h.remove)
 }
@@ -74,6 +75,24 @@ func (h *EmissionSampleHandler) update(c *gin.Context) {
 		return
 	}
 	item, err := h.service.Update(c.Request.Context(), id, input, actorFromContext(c), requestIDFromContext(c))
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	util.OK(c, item)
+}
+
+func (h *EmissionSampleHandler) revise(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var input dto.ReviseEmissionSample
+	if err := c.ShouldBindJSON(&input); err != nil {
+		util.Fail(c, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	item, err := h.service.Revise(c.Request.Context(), id, input, actorFromContext(c), requestIDFromContext(c))
 	if err != nil {
 		handleError(c, err)
 		return

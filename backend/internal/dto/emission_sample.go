@@ -33,3 +33,10 @@ type UpdateEmissionSample struct {
 	Evidence        string    `json:"evidence" binding:"max=2000"`
 	RelatedCode     string    `json:"relatedCode" binding:"max=64"`
 }
+
+// ReviseEmissionSample amends an already verified 排放样本. Reason is mandatory
+// so every appended revision carries an explicit justification.
+type ReviseEmissionSample struct {
+	UpdateEmissionSample
+	Reason string `json:"reason" binding:"required,min=2,max=500"`
+}

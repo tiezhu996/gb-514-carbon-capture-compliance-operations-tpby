@@ -17,7 +17,7 @@ export interface DomainRecord {
   relatedCode: string;
   createdAt: string;
   updatedAt: string;
-  revisions?: DecisionRevision[];
+  revisions?: Array<DecisionRevision | SampleRevision>;
 }
 
 export interface DecisionRevision {
@@ -30,6 +30,29 @@ export interface DecisionRevision {
   actor: string;
   requestId: string;
   createdAt: string;
+}
+
+export interface SampleRevision {
+  id: number;
+  emissionSampleId: number;
+  version: number;
+  kind: 'baseline' | 'revision' | string;
+  name: string;
+  description: string;
+  facility: string;
+  owner: string;
+  category: string;
+  riskLevel: string;
+  metricValue: number;
+  metricUnit: string;
+  effectiveAt: string;
+  evidence: string;
+  relatedCode: string;
+  reason: string;
+  actor: string;
+  requestId: string;
+  createdAt: string;
+  current: boolean;
 }
 
 export interface PageMeta { page: number; pageSize: number; total: number }

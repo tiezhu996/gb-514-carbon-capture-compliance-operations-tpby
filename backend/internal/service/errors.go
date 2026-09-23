@@ -9,4 +9,6 @@ var (
 	ErrInactiveUser      = errors.New("user account is inactive")
 	ErrReviewerRequired  = errors.New("reviewer or admin role is required for this decision")
 	ErrDecisionLocked    = errors.New("compliance decision fields are locked after review begins")
+	ErrRevisionReason    = errors.New("a revision reason is required when amending a verified sample")
+	ErrVerifiedRevision  = errors.New("verified samples can only change through a revision request")
 )

@@ -54,4 +54,40 @@ td small { display: block; color: #7d8d97; margin-top: 4px; }
 .rule-diff-grid article span { color: #526473; }.rule-diff-grid article em { grid-column: 1 / -1; color: #176c55; font-size: 12px; font-style: normal; }.rule-diff-grid article em.over-limit { color: #a12c37; }
 .evidence-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }.evidence-strip article { min-width: 0; padding: 10px; border: 1px solid #dbe4e8; display: grid; gap: 5px; }.evidence-strip p { margin: 2px 0; color: #526473; font-size: 12px; line-height: 1.5; }.evidence-strip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #738590; }
 .app-loading { min-height: 100vh; display: grid; place-items: center; color: #176c55; font-weight: 700; }
+.sample-revision-panel { background: white; border: 1px solid #dbe4e8; margin-bottom: 14px; padding: 15px; }
+.sample-revision-panel > header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.sample-revision-panel > header span { color: #6c7e8a; font-size: 12px; }
+.revision-list { display: grid; gap: 12px; }
+.revision-card { border: 1px solid #dbe4e8; padding: 14px; }
+.revision-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.revision-head small { display: block; color: #7d8d97; margin-top: 4px; }
+.revision-meta { display: flex; align-items: center; gap: 12px; }
+.revision-current { display: inline-flex; align-items: center; background: #dff3ec; color: #176c55; font-weight: 750; font-size: 12px; padding: 4px 10px; border-radius: 3px; }
+.revision-alert { margin: 10px 0 0; }
+.revision-timeline { margin-top: 12px; display: grid; gap: 10px; }
+.revision-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; padding: 10px; border-left: 3px solid #cdd8de; background: #f8fafb; }
+.revision-row.is-current { border-left-color: #2a9d78; background: #f2faf7; }
+.revision-tag { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.version-pill { background: #233f53; color: white; font-size: 11px; font-weight: 750; padding: 3px 8px; border-radius: 3px; }
+.version-pill.baseline { background: #82919a; }
+.revision-tag .kind { font-style: normal; font-size: 11px; color: #667886; }
+.current-flag { font-size: 10px; font-weight: 750; color: #176c55; text-transform: uppercase; }
+.revision-body p { margin: 0 0 4px; font-size: 13px; }
+.revision-body small { color: #738590; }
+.diff-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.diff-list li { display: grid; grid-template-columns: 88px minmax(0, 1fr) 20px minmax(0, 1fr); gap: 8px; font-size: 12px; align-items: baseline; }
+.diff-label { color: #4f6370; font-weight: 650; }
+.diff-before { color: #9d2c37; overflow-wrap: anywhere; }
+.diff-arrow { color: #82919a; text-align: center; }
+.diff-after { color: #176c55; overflow-wrap: anywhere; }
+.revision-modal { width: min(680px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; }
+.modal-hint { color: #667886; font-size: 13px; margin: 0 0 14px; }
+.revision-form { display: grid; gap: 12px; }
+.revision-form label { display: grid; gap: 5px; font-size: 12px; color: #4f6370; font-weight: 650; }
+.revision-form label em { color: #c84855; font-style: normal; }
+.revision-form input, .revision-form select, .revision-form textarea { border: 1px solid #bdcbd3; padding: 9px 11px; font-weight: 400; color: #172332; }
+.revision-form textarea { resize: vertical; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.form-grid .span-2 { grid-column: 1 / -1; }
+@media (max-width: 900px) { .revision-row { grid-template-columns: 1fr; } .diff-list li { grid-template-columns: 72px minmax(0, 1fr) 16px minmax(0, 1fr); } .form-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .app-shell { grid-template-columns: 1fr; } aside { position: static; height: auto; } nav { grid-template-columns: repeat(2, 1fr); } .user-panel { display: none; } .metrics, .compliance-grid, .rule-diff-grid, .evidence-strip { grid-template-columns: 1fr; } .workspace { padding: 18px; } .page-header { flex-direction: column; } .toolbar { flex-wrap: wrap; } .toolbar input, .toolbar .el-input { flex: 1 1 100%; width: 100%; min-width: 0; max-width: none; } .audit-list article { grid-template-columns: 1fr; } }

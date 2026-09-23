@@ -80,6 +80,7 @@ func migrate(db *gorm.DB) error {
 		&model.CaptureUnit{},
 		&model.PermitRule{},
 		&model.EmissionSample{},
+		&model.SampleRevision{},
 		&model.ComplianceDecision{},
 		&model.DecisionRevision{},
 	)
@@ -200,7 +201,24 @@ func seedEmissionSample(ctx context.Context, db *gorm.DB) error {
 			Category: "复核", RiskLevel: "high", MetricValue: 37.5, MetricUnit: "score",
 			EffectiveAt: now.Add(6 * time.Hour), Evidence: "已完成基础证据核对", RelatedCode: "REL-514-03"},
 	}
-	return db.WithContext(ctx).Create(&items).Error
+	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("Revisions").Create(&items).Error; err != nil {
+			return err
+		}
+		revisions := make([]model.SampleRevision, 0, len(items))
+		for _, item := range items {
+			revision := model.SampleRevision{
+				EmissionSampleID: item.ID, Version: item.Version, Kind: model.SampleRevisionKindBaseline,
+				Name: item.Name, Description: item.Description, Facility: item.Facility, Owner: item.Owner,
+				Category: item.Category, RiskLevel: item.RiskLevel, MetricValue: item.MetricValue,
+				MetricUnit: item.MetricUnit, EffectiveAt: item.EffectiveAt, Evidence: item.Evidence,
+				RelatedCode: item.RelatedCode, Reason: "seeded emission sample baseline", Current: true,
+				Actor: "system", RequestID: "seed-" + item.Code, CreatedAt: now,
+			}
+			revisions = append(revisions, revision)
+		}
+		return tx.Create(&revisions).Error
+	})
 }
 
 func seedComplianceDecision(ctx context.Context, db *gorm.DB) error {

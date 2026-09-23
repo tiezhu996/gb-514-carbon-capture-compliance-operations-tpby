@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import type { DecisionRevision, DomainRecord } from '../../types/domain';
+import type { DecisionRevision, DomainRecord, SampleRevision } from '../../types/domain';
 
 @Component({
   selector: 'app-evidence-list',
@@ -21,7 +21,7 @@ import type { DecisionRevision, DomainRecord } from '../../types/domain';
 })
 export class EvidenceListComponent {
   @Input() records: DomainRecord[] = [];
-  latest(item: DomainRecord): DecisionRevision | null {
+  latest(item: DomainRecord): DecisionRevision | SampleRevision | null {
     return item.revisions?.[item.revisions.length - 1] || null;
   }
 }
