@@ -17,7 +17,8 @@ export interface DomainRecord {
   relatedCode: string;
   createdAt: string;
   updatedAt: string;
-  revisions?: DecisionRevision[];
+  revisions?: Array<DecisionRevision | SampleRevision>;
+  rejections?: SampleRejection[];
 }
 
 export interface DecisionRevision {
@@ -26,6 +27,31 @@ export interface DecisionRevision {
   version: number;
   state: string;
   evidence: string;
+  reason: string;
+  actor: string;
+  requestId: string;
+  createdAt: string;
+}
+
+export interface SampleRevision {
+  id: number;
+  emissionSampleId: number;
+  version: number;
+  state: string;
+  riskLevel: string;
+  metricValue: number;
+  metricUnit: string;
+  evidence: string;
+  reason: string;
+  actor: string;
+  requestId: string;
+  createdAt: string;
+}
+
+export interface SampleRejection {
+  id: number;
+  emissionSampleId: number;
+  code: string;
   reason: string;
   actor: string;
   requestId: string;

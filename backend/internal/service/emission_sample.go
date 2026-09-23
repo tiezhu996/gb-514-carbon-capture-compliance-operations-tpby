@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -54,11 +55,18 @@ func (s *emissionSampleService) Create(ctx context.Context, input dto.CreateEmis
 		EffectiveAt: input.EffectiveAt.UTC(), Evidence: strings.TrimSpace(input.Evidence),
 		RelatedCode: strings.ToUpper(strings.TrimSpace(input.RelatedCode)),
 	}
-	if err := s.repository.Create(ctx, &item); err != nil {
+	revision := newSampleRevision(&item, "created emission sample", actor, requestID)
+	if err := s.repository.CreateWithRevision(ctx, &item, revision); err != nil {
+		if errors.Is(err, repository.ErrCodeConflict) {
+			// Reject the whole duplicate-code submission: no sample row and no
+			// revision are written, only the refusal is recorded.
+			s.recordRejection(ctx, item.Code, ErrDuplicateCode.Error(), actor, requestID)
+			return model.EmissionSample{}, ErrDuplicateCode
+		}
 		return model.EmissionSample{}, fmt.Errorf("create 排放样本: %w", err)
 	}
 	_ = s.security.Audit(ctx, actor, requestID, "create", "EmissionSample", item.ID, "", item.Status, "created 排放样本")
-	return item, nil
+	return s.repository.Get(ctx, item.ID)
 }
 
 func (s *emissionSampleService) Update(ctx context.Context, id uint, input dto.UpdateEmissionSample, actor, requestID string) (model.EmissionSample, error) {
@@ -68,6 +76,16 @@ func (s *emissionSampleService) Update(ctx context.Context, id uint, input dto.U
 	}
 	if err := validateEmissionSampleBusinessFields(current.Code, input.Name, input.Facility, input.Owner); err != nil {
 		return model.EmissionSample{}, err
+	}
+	reason := strings.TrimSpace(input.RevisionReason)
+	if current.Status == model.EmissionSampleVerifiedStatus && reason == "" {
+		// Verified samples feed compliance judgement, so every modification must
+		// carry a revision reason. The whole request is rejected atomically.
+		s.recordRejection(ctx, current.Code, ErrRevisionReason.Error(), actor, requestID)
+		return model.EmissionSample{}, ErrRevisionReason
+	}
+	if reason == "" {
+		reason = "updated emission sample fields"
 	}
 	current.Name = strings.TrimSpace(input.Name)
 	current.Description = strings.TrimSpace(input.Description)
@@ -82,7 +100,11 @@ func (s *emissionSampleService) Update(ctx context.Context, id uint, input dto.U
 	current.RelatedCode = strings.ToUpper(strings.TrimSpace(input.RelatedCode))
 	current.Version = input.ExpectedVersion + 1
 	current.UpdatedAt = time.Now().UTC()
-	if err := s.repository.Update(ctx, id, input.ExpectedVersion, &current); err != nil {
+	revision := newSampleRevision(&current, reason, actor, requestID)
+	if err := s.repository.UpdateWithRevision(ctx, id, input.ExpectedVersion, &current, revision); err != nil {
+		if errors.Is(err, repository.ErrVersionConflict) {
+			s.recordRejection(ctx, current.Code, repository.ErrVersionConflict.Error(), actor, requestID)
+		}
 		return model.EmissionSample{}, fmt.Errorf("update 排放样本: %w", err)
 	}
 	_ = s.security.Audit(ctx, actor, requestID, "update", "EmissionSample", id, current.Status, current.Status, "updated business fields")
@@ -102,7 +124,8 @@ func (s *emissionSampleService) Transition(ctx context.Context, id uint, input d
 	current.Status = target
 	current.Version = input.ExpectedVersion + 1
 	current.UpdatedAt = time.Now().UTC()
-	if err := s.repository.Update(ctx, id, input.ExpectedVersion, &current); err != nil {
+	revision := newSampleRevision(&current, input.Reason, actor, requestID)
+	if err := s.repository.UpdateWithRevision(ctx, id, input.ExpectedVersion, &current, revision); err != nil {
 		return model.EmissionSample{}, fmt.Errorf("transition 排放样本: %w", err)
 	}
 	if err := s.security.Audit(ctx, actor, requestID, "transition", "EmissionSample", id, before, target, input.Reason); err != nil {
@@ -131,4 +154,33 @@ func validateEmissionSampleBusinessFields(code, name, facility, owner string) er
 		return ErrInvalidInput
 	}
 	return nil
+}
+
+// newSampleRevision snapshots the values that compliance judgement may rely on.
+// Only the revision carrying the aggregate's current version stays authoritative.
+func newSampleRevision(item *model.EmissionSample, reason, actor, requestID string) *model.SampleRevision {
+	return &model.SampleRevision{
+		Version: item.Version, State: strings.TrimSpace(item.Status), RiskLevel: strings.TrimSpace(item.RiskLevel),
+		MetricValue: item.MetricValue, MetricUnit: strings.TrimSpace(item.MetricUnit),
+		Evidence: strings.TrimSpace(item.Evidence), Reason: strings.TrimSpace(reason),
+		Actor: strings.TrimSpace(actor), RequestID: strings.TrimSpace(requestID), CreatedAt: time.Now().UTC(),
+	}
+}
+
+// recordRejection persists why a sample write was refused so the sample page can
+// show the cause after a refresh. The rejection itself never alters revisions.
+func (s *emissionSampleService) recordRejection(ctx context.Context, code, reason, actor, requestID string) {
+	code = strings.TrimSpace(code)
+	var sampleID uint
+	if existing, err := s.repository.FindByCode(ctx, code); err == nil {
+		sampleID = existing.ID
+	}
+	rejection := &model.SampleRejection{
+		EmissionSampleID: sampleID, Code: code, Reason: strings.TrimSpace(reason),
+		Actor: strings.TrimSpace(actor), RequestID: strings.TrimSpace(requestID), CreatedAt: time.Now().UTC(),
+	}
+	if err := s.repository.AppendRejection(ctx, rejection); err != nil {
+		return
+	}
+	_ = s.security.Audit(ctx, actor, requestID, "reject", "EmissionSample", sampleID, "", "", reason)
 }

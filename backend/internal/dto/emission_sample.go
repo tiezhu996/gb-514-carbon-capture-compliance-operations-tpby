@@ -32,4 +32,7 @@ type UpdateEmissionSample struct {
 	EffectiveAt     time.Time `json:"effectiveAt" binding:"required"`
 	Evidence        string    `json:"evidence" binding:"max=2000"`
 	RelatedCode     string    `json:"relatedCode" binding:"max=64"`
+	// RevisionReason explains why the sample was modified. It is mandatory once
+	// the sample is verified; the service enforces that rule atomically.
+	RevisionReason string `json:"revisionReason" binding:"max=500"`
 }

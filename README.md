@@ -33,11 +33,12 @@ docker compose down -v --remove-orphans
 
 - JWT 登录和 viewer/operator/reviewer/admin 四级 RBAC；写操作至少需要 operator，删除仅 admin，审计至少 reviewer。
 - 合规决定每次创建、草稿修改和状态迁移都会事务追加不可变版本，保存状态、证据、操作者和 request ID；进入 review 后业务字段锁定，accepted/escalated 仅 reviewer 或 admin 可执行。
+- 排放样本的创建、修改和状态迁移同样事务追加 `SampleRevision` 快照；verified 样本的修改必须携带修订原因，原因缺失、版本号过期或同编码重复提交都会整次拒绝并持久化拒绝原因（`SampleRejection`），只有最新修订作为关联合规判断依据。
 - 所有状态变化使用乐观锁并写入不可覆盖的审计日志。
 - 请求 ID、结构化日志、全局错误映射和 Redis 分布式限流。
 - 提供脱敏运行配置、当前会话、审计汇总和单实体审计历史接口。
 - Angular 路由守卫和按钮显隐与后端角色边界一致；viewer 可浏览但不能写入，审计页要求 reviewer。
-- 业务工作台支持查询、新建、状态推进、风险标识及操作审计查看；`ComplianceBadge` 复用于装置/决定页，`RuleDiff` 复用于规则/样本页，`EvidenceList` 展示版本证据上下文。
+- 业务工作台支持查询、新建、状态推进、风险标识及操作审计查看；`ComplianceBadge` 复用于装置/决定页，`RuleDiff` 复用于规则/样本页，`EvidenceList` 展示版本证据上下文，`RevisionHistory` 在样本页展示当前修订号、历史差异与拒绝原因，样本修订对话框在 verified 样本上强制填写修订原因。
 
 ## 合规决定版本规则
 
@@ -48,6 +49,19 @@ docker compose down -v --remove-orphans
 | draft → review | operator/reviewer/admin | 追加复核版本，禁止跳过 review |
 | review → accepted/escalated | reviewer/admin | 追加最终决定版本；operator 会被拒绝 |
 | review 后修改字段 | 无 | 返回业务规则错误，历史与证据不可覆盖 |
+
+## 排放样本修订规则
+
+| 操作 | 允许角色 | 修订行为 |
+|---|---|---|
+| 创建样本 | operator/reviewer/admin | 写入 v1 修订快照（状态、指标、风险、证据、actor、request ID） |
+| 状态迁移 | operator/reviewer/admin | 追加下一条修订，迁移图与此前保持一致 |
+| 修改样本 | operator/reviewer/admin | 保留原值并追加下一条修订；仅最新修订作为关联合规判断依据 |
+| 修改 verified 样本 | operator/reviewer/admin | 必须填写修订原因（`revisionReason`），否则整次拒绝 |
+| 原因缺失 / 版本号过期 / 同编码重复提交 | 任意 | 整次拒绝（422/409），不新增修订，拒绝原因持久化并随样本返回 |
+
+- 样本页展示当前修订号、逐条历史差异和已持久化的拒绝原因，刷新后读取同一结果。
+- 拒绝记录通过 `SampleRejection` 追加保存，并同步写入既有审计日志（字段不变，action 为 `reject`）。
 
 ## 技术栈
 

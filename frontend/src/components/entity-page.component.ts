@@ -6,18 +6,34 @@ import { MatInputModule } from '@angular/material/input';
 import { authState } from '../hooks/use-auth';
 import type { EntityStore } from '../stores/factory';
 import type { DomainRecord, EntityConfig } from '../types/domain';
-import { formatDate, nextStatus } from '../utils/format';
+import { formatDate, nextStatus, toLocalInput } from '../utils/format';
 import { ConfirmDialogComponent } from './common/confirm-dialog.component';
 import { ComplianceBadgeComponent } from './common/compliance-badge.component';
 import { EvidenceListComponent } from './common/evidence-list.component';
 import { MetricCardComponent } from './common/metric-card.component';
+import { RevisionHistoryComponent } from './common/revision-history.component';
 import { RuleDiffComponent } from './common/rule-diff.component';
 import { StatusBadgeComponent } from './common/status-badge.component';
+
+interface SampleEditForm {
+  name: string;
+  description: string;
+  facility: string;
+  owner: string;
+  category: string;
+  riskLevel: string;
+  metricValue: number;
+  metricUnit: string;
+  effectiveAt: string;
+  evidence: string;
+  relatedCode: string;
+  revisionReason: string;
+}
 
 @Component({
   selector: 'app-entity-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, FormsModule, MatButtonModule, MatInputModule, StatusBadgeComponent, MetricCardComponent, ConfirmDialogComponent, EvidenceListComponent, ComplianceBadgeComponent, RuleDiffComponent],
+  imports: [CommonModule, AsyncPipe, FormsModule, MatButtonModule, MatInputModule, StatusBadgeComponent, MetricCardComponent, ConfirmDialogComponent, EvidenceListComponent, ComplianceBadgeComponent, RuleDiffComponent, RevisionHistoryComponent],
   template: `<main class="workspace" *ngIf="store.state$ | async as state">
     <header class="page-header">
       <div><p class="eyebrow">业务工作台</p><h1>{{ config.label }}</h1><p>统一管理{{ config.label }}的状态、风险、证据与责任人。</p></div>
@@ -30,6 +46,7 @@ import { StatusBadgeComponent } from './common/status-badge.component';
     </section>
     <app-compliance-badge *ngIf="config.path === 'units' || config.path === 'decisions'" [records]="state.items"/>
     <app-rule-diff *ngIf="config.path === 'rules' || config.path === 'samples'" [records]="state.items"/>
+    <app-revision-history *ngIf="config.path === 'samples'" [records]="state.items"/>
     <app-evidence-list [records]="state.items"/>
     <section class="toolbar">
       <input matInput aria-label="搜索" [(ngModel)]="search" [placeholder]="'搜索' + config.label + '编码或名称'"/>
@@ -38,14 +55,31 @@ import { StatusBadgeComponent } from './common/status-badge.component';
     </section>
     <div *ngIf="state.error" class="alert">{{ state.error }}</div>
     <section class="table-shell"><table><thead><tr><th>编码</th><th>名称</th><th>状态</th><th>风险</th><th>责任人</th><th>指标</th><th>更新时间</th><th>操作</th></tr></thead>
-      <tbody><tr *ngFor="let item of state.items"><td><strong>{{ item.code }}</strong></td><td>{{ item.name }}<small>{{ item.facility }}</small></td><td><app-status-badge [status]="item.status"/></td><td>{{ item.riskLevel }}</td><td>{{ item.owner }}</td><td>{{ item.metricValue }} {{ item.metricUnit }}</td><td>{{ formatDate(item.updatedAt) }}</td><td>
+      <tbody><tr *ngFor="let item of state.items"><td><strong>{{ item.code }}</strong><small *ngIf="config.path === 'samples'" class="muted">修订 v{{ item.version }}</small></td><td>{{ item.name }}<small>{{ item.facility }}</small></td><td><app-status-badge [status]="item.status"/></td><td>{{ item.riskLevel }}</td><td>{{ item.owner }}</td><td>{{ item.metricValue }} {{ item.metricUnit }}</td><td>{{ formatDate(item.updatedAt) }}</td><td>
         <button *ngIf="canTransition(item)" class="table-action" (click)="openTransition(item, next(item)!)">推进至 {{ next(item) }}</button>
-        <span *ngIf="!canTransition(item)" class="muted">{{ actionHint(item) }}</span>
+        <button *ngIf="config.path === 'samples' && canWrite()" class="table-action" (click)="openEdit(item)">修订</button>
+        <span *ngIf="!canTransition(item) && !(config.path === 'samples' && canWrite())" class="muted">{{ actionHint(item) }}</span>
       </td></tr><tr *ngIf="!state.items.length && !state.loading"><td colspan="8" class="empty">暂无记录</td></tr></tbody></table>
       <div *ngIf="state.loading" class="loading">正在同步业务数据…</div>
     </section>
     <app-confirm-dialog [open]="showCreate" [title]="'新增' + config.label" (cancel)="closeCreate()" (confirm)="createDemo()"><p>将创建一条包含完整责任人、风险和证据信息的演示记录。</p></app-confirm-dialog>
     <app-confirm-dialog [open]="!!pending" title="确认状态迁移" (cancel)="closeTransition()" (confirm)="confirmTransition()"><p>状态迁移会追加不可变版本并记录证据、操作者与请求 ID。</p><strong>{{ pending?.item?.status }} → {{ pending?.status }}</strong></app-confirm-dialog>
+    <app-confirm-dialog [open]="!!editing" [title]="'修订样本 ' + (editing?.code || '')" (cancel)="closeEdit()" (confirm)="confirmEdit()">
+      <div class="form-grid" *ngIf="editing">
+        <label>名称<input matInput [(ngModel)]="editForm.name"/></label>
+        <label>作业区<input matInput [(ngModel)]="editForm.facility"/></label>
+        <label>责任人<input matInput [(ngModel)]="editForm.owner"/></label>
+        <label>类别<input matInput [(ngModel)]="editForm.category"/></label>
+        <label>风险等级<select [(ngModel)]="editForm.riskLevel"><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="critical">critical</option></select></label>
+        <label>指标值<input matInput type="number" [(ngModel)]="editForm.metricValue"/></label>
+        <label>指标单位<input matInput [(ngModel)]="editForm.metricUnit"/></label>
+        <label>生效时间<input matInput type="datetime-local" [(ngModel)]="editForm.effectiveAt"/></label>
+        <label class="form-grid-wide">证据说明<input matInput [(ngModel)]="editForm.evidence"/></label>
+        <label class="form-grid-wide">修订原因（verified 样本必填）<input matInput [(ngModel)]="editForm.revisionReason" placeholder="说明本次修改的原因"/></label>
+      </div>
+      <p *ngIf="editing?.status === 'verified'" class="hint">该样本已核验：必须填写修订原因，系统将保留原值并追加下一条修订。</p>
+      <p *ngIf="editError" class="alert">已拒绝：{{ editError }}</p>
+    </app-confirm-dialog>
   </main>`,
 })
 export class EntityPageComponent implements OnInit {
@@ -54,6 +88,9 @@ export class EntityPageComponent implements OnInit {
   search = '';
   showCreate = false;
   pending: { item: DomainRecord; status: string } | null = null;
+  editing: DomainRecord | null = null;
+  editForm: SampleEditForm = this.emptyEditForm();
+  editError = '';
   readonly formatDate = formatDate;
 
   constructor(private readonly changeDetector: ChangeDetectorRef) {}
@@ -81,6 +118,18 @@ export class EntityPageComponent implements OnInit {
   closeCreate() { this.showCreate = false; this.changeDetector.detectChanges(); }
   openTransition(item: DomainRecord, status: string) { if (this.canTransition(item)) this.pending = { item, status }; this.changeDetector.detectChanges(); }
   closeTransition() { this.pending = null; this.changeDetector.detectChanges(); }
+  openEdit(item: DomainRecord) {
+    if (!this.canWrite()) return;
+    this.editing = item;
+    this.editError = '';
+    this.editForm = {
+      name: item.name, description: item.description, facility: item.facility, owner: item.owner,
+      category: item.category, riskLevel: item.riskLevel, metricValue: item.metricValue, metricUnit: item.metricUnit,
+      effectiveAt: toLocalInput(item.effectiveAt), evidence: item.evidence, relatedCode: item.relatedCode, revisionReason: '',
+    };
+    this.changeDetector.detectChanges();
+  }
+  closeEdit() { this.editing = null; this.editError = ''; this.changeDetector.detectChanges(); }
   async createDemo() {
     if (!this.canWrite()) return;
     const now = Date.now();
@@ -104,6 +153,34 @@ export class EntityPageComponent implements OnInit {
       this.pending = null;
     } catch { /* Store exposes the request error in its observable state. */ }
     finally { this.changeDetector.detectChanges(); }
+  }
+  async confirmEdit() {
+    if (!this.editing || !this.canWrite()) return;
+    const item = this.editing;
+    const effectiveAt = new Date(this.editForm.effectiveAt);
+    if (Number.isNaN(effectiveAt.getTime())) {
+      this.editError = '生效时间无效，请重新选择';
+      this.changeDetector.detectChanges();
+      return;
+    }
+    try {
+      await this.store.updateRecord(this.config.path, item.id, {
+        expectedVersion: item.version, name: this.editForm.name, description: this.editForm.description,
+        facility: this.editForm.facility, owner: this.editForm.owner, category: this.editForm.category,
+        riskLevel: this.editForm.riskLevel as DomainRecord['riskLevel'], metricValue: Number(this.editForm.metricValue),
+        metricUnit: this.editForm.metricUnit, effectiveAt: effectiveAt.toISOString(),
+        evidence: this.editForm.evidence, relatedCode: this.editForm.relatedCode, revisionReason: this.editForm.revisionReason,
+      });
+      this.editing = null;
+      this.editError = '';
+    } catch (error) {
+      // The rejection is persisted server-side; reload so it stays visible after refresh.
+      this.editError = error instanceof Error ? error.message : String(error);
+      await this.load(this.search);
+    } finally { this.changeDetector.detectChanges(); }
+  }
+  private emptyEditForm(): SampleEditForm {
+    return { name: '', description: '', facility: '', owner: '', category: '', riskLevel: 'medium', metricValue: 0, metricUnit: '', effectiveAt: '', evidence: '', relatedCode: '', revisionReason: '' };
   }
   private async load(search = '') { await this.store.load(this.config.path, search); this.changeDetector.detectChanges(); }
 }

@@ -11,6 +11,21 @@ import (
 
 var ErrVersionConflict = errors.New("record was changed by another request")
 
+// ErrCodeConflict reports that the immutable business code is already in use.
+var ErrCodeConflict = errors.New("record code is already in use")
+
+// isDuplicateKey normalizes unique-constraint violations across postgres,
+// mysql and sqlite so services can reject whole duplicate-code submissions.
+func isDuplicateKey(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "duplicate") ||
+		strings.Contains(message, "unique constraint") ||
+		strings.Contains(message, "23505")
+}
+
 type Page[T any] struct {
 	Items    []T   `json:"items"`
 	Total    int64 `json:"total"`

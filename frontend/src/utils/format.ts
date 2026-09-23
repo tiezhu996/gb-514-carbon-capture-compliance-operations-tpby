@@ -6,6 +6,12 @@ export function nextStatus(current: string, statuses: readonly string[]): string
   const index = statuses.indexOf(current);
   return index >= 0 && index < statuses.length - 1 ? statuses[index + 1] : null;
 }
+export function toLocalInput(value: string): string {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 export function statusTone(status: string): 'success' | 'warning' | 'danger' | 'neutral' {
   if (/approved|accepted|released|completed|signed|closed|pass|ready|online|cleared|succeeded/.test(status)) return 'success';
   if (/failed|rejected|critical|scrap|discard|revoked|urgent/.test(status)) return 'danger';
